@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <LanguageData>
-    <CMS_Width>Width:     </CMS_Width>
-    <CMS_Height>Height:     </CMS_Height>
-    <CMS_Custom>Custom</CMS_Custom>
-    <CMS_CustomLabel>{0}x{1} ({2} cells)</CMS_CustomLabel>
-    <CMS_Settings_Description>Select the default map size for future map generations. Does not affect any existing savefiles.</CMS_Settings_Description>
+  <CMS_ModName>Custom Map Sizes</CMS_ModName>
+  <CMS_Width>Width</CMS_Width>
+  <CMS_Height>Height</CMS_Height>
+  <CMS_Custom>Custom</CMS_Custom>
+  <CMS_CustomSizes>Custom Map Sizes</CMS_CustomSizes>
+  <CMS_StandardSizes>Standard Map Sizes</CMS_StandardSizes>
+  <CMS_CustomLabel>{0}×{1} ({2} cells)</CMS_CustomLabel>
+  <CMS_Settings_Description>Select the default map size for new games. Does not affect existing save files.</CMS_Settings_Description>
+  <CMS_CurrentDefault>Current default: {0}×{1} ({2} cells)</CMS_CurrentDefault>
+  <CMS_UseSavedDefault>Use saved default: {0}×{1} ({2} cells)</CMS_UseSavedDefault>
+  <CMS_MakeDefault>Make current selection the default</CMS_MakeDefault>
+  <CMS_MakeDefaultShort>Make default</CMS_MakeDefaultShort>
+  <CMS_IsNotDefault>Not default — click to make this the default</CMS_IsNotDefault>
+  <CMS_IsNotDefaultShort>Not default</CMS_IsNotDefaultShort>
+  <CMS_NotDefaultTip>Current selection differs from your saved default. Click to make this the default for future colonies.</CMS_NotDefaultTip>
+  <CMS_AlreadyDefaultTip>This is already your saved default.</CMS_AlreadyDefaultTip>
+  <CMS_PerfNote>Note: Very large maps can impact performance.</CMS_PerfNote>
 </LanguageData>

@@ -1,53 +1,106 @@
-﻿using HarmonyLib;
-using Verse;
-using System.Collections.Generic;
-using System;
-using System.Reflection.Emit;
-using System.Reflection;
-
-namespace CustomMapSizes.HarmonyPatches
+﻿namespace CustomMapSizes.HarmonyPatches
 {
+    using HarmonyLib;
+    using System.Collections.Generic;
+    using System.Reflection;
+    using System.Reflection.Emit;
+    using Verse;
+
     [HarmonyPatch(typeof(Game), nameof(Game.InitNewGame))]
-    static class Patch_Game_InitNewGame
+    internal static class Patch_Game_InitNewGame
     {
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            var from = AccessTools.Constructor(typeof(IntVec3), new Type[] { typeof(int), typeof(int), typeof(int) });
-            var to = AccessTools.Method(typeof(Patch_Game_InitNewGame), nameof(CreateMyCustomVector));
+            var codes = new List<CodeInstruction>(instructions);
 
-            // I could not, for the life of me, figure out how to target the correct Ldloca_S with the operand.
-            // The "correct" way would be to find the one with operand == 1, but that doesn't work.
-            // If you know of the way, feel free to PR/tell me about it!
-            var encounteredFirstLdloca_S = false;
+            var intVec3Ctor = AccessTools.Constructor(typeof(IntVec3),
+                new[] { typeof(int), typeof(int), typeof(int) });
 
-            var replacedInstructions = instructions.MethodReplacer(from, to);
+            // IMPORTANT: point to the helper method below
+            var createMethod = AccessTools.Method(typeof(CmsIlHelpers), nameof(CmsIlHelpers.CreateCustomVector));
 
-            foreach (var instruction in replacedInstructions)
+            int replacements = 0;
+
+            for (int i = 0; i < codes.Count; i++)
             {
-                // First Ldloca_S is our vector allocation.
-                // We have replaced the constructor call with a static metho, so we should get rid of this.
-                // We will set it after our static call.
-                if (instruction.opcode == OpCodes.Ldloca_S && !encounteredFirstLdloca_S) {
-                    encounteredFirstLdloca_S = true;
-                    continue; 
-                }
-                yield return instruction;
-                // If this instruction is our static call, we should set the result to the correct local variable.
-                if (instruction.opcode == OpCodes.Call && (MethodInfo) instruction.operand == to)
+                var ins = codes[i];
+#pragma warning disable IDE0038
+                if (ins.opcode == OpCodes.Call
+                    && ins.operand is MethodBase
+                    && (MethodBase)ins.operand == intVec3Ctor)
+#pragma warning restore IDE0038
                 {
-                    yield return new CodeInstruction(OpCodes.Stloc_1);
+                    // Look back for the ldloca.s that the ctor would write into
+                    int j = i - 1;
+                    int searchLimit = i - 12; if (searchLimit < 0) searchLimit = 0;
+
+                    while (j >= searchLimit && codes[j].opcode != OpCodes.Ldloca_S) j--;
+
+                    if (j >= searchLimit && codes[j].opcode == OpCodes.Ldloca_S)
+                    {
+                        object locOperand = codes[j].operand;
+
+                        // Move labels/blocks from the removed ldloca.s onto the next instruction
+                        if (j + 1 < codes.Count)
+                        {
+                            if (codes[j].labels != null && codes[j].labels.Count > 0)
+                            {
+                                codes[j + 1].labels.AddRange(codes[j].labels);
+                                codes[j].labels.Clear();
+                            }
+                            if (codes[j].blocks != null && codes[j].blocks.Count > 0)
+                            {
+                                codes[j + 1].blocks.AddRange(codes[j].blocks);
+                                codes[j].blocks.Clear();
+                            }
+                        }
+
+                        // Remove ldloca.s
+                        codes.RemoveAt(j);
+                        i--;
+
+                        // Replace ctor call with our static method (preserve labels/blocks)
+                        var callReplacement = new CodeInstruction(OpCodes.Call, createMethod);
+                        if (ins.labels != null && ins.labels.Count > 0)
+                            callReplacement.labels.AddRange(ins.labels);
+                        if (ins.blocks != null && ins.blocks.Count > 0)
+                            callReplacement.blocks.AddRange(ins.blocks);
+
+                        codes[i] = callReplacement;
+
+                        // Store the returned IntVec3 into the same local
+                        codes.Insert(i + 1, new CodeInstruction(OpCodes.Stloc_S, locOperand));
+
+                        i++;
+                        replacements++;
+                    }
                 }
             }
-        }
 
-        public static IntVec3 CreateMyCustomVector(int x, int y, int z)
+            if (replacements == 0)
+                Log.Warning("[CustomMapSizes] No IntVec3 ctor sites were replaced in Game.InitNewGame.");
+
+            return codes;
+        }
+    }
+
+    // ← This is the “factory” method: a static helper the IL will call instead of new IntVec3(...)
+    internal static class CmsIlHelpers
+    {
+        public static IntVec3 CreateCustomVector(int x, int y, int z)
         {
             if (x == -1 && z == -1)
             {
-                return new IntVec3(CustomMapSizesMain.mapWidth, y, CustomMapSizesMain.mapHeight);
+                var data = Find.GameInitData;
+                if (data != null)
+                {
+                    if (data.mapSize == -1)
+                        return new IntVec3(CustomMapSizesMain.mapWidth, y, CustomMapSizesMain.mapHeight);
+                    if (data.mapSize > 0)
+                        return new IntVec3(data.mapSize, y, data.mapSize);
+                }
             }
             return new IntVec3(x, y, z);
         }
     }
-
 }
